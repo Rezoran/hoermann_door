@@ -1,75 +1,298 @@
 #include "uapbridge_pic16.h"
 
 namespace esphome {
-namespace uapbridge_pic16 {
-static const char *const TAG = "uapbridge_pic16";
+namespace uapbridge {
+static const char *const TAG = "uapbridge";
 
-void UAPBridge_pic16::setup() {
+void UAPBridge::setup() {
   ESP_LOGCONFIG(TAG, "Garage setup called!");
 }
 
-void UAPBridge_pic16::loop() {
-  // Timeout mechanism for PIC16 communication
-  if (millis() - this->last_parse_time > 60000) {
-    this->pic16_com = false;
-    this->data_has_changed = true;
-  }
+void UAPBridge::loop() {
+  this->loop_fast();
+  this->loop_slow();
+}
+void UAPBridge::loop_fast() {
+  // stop any communication, e.g. during OTA update
+  // if (stopComm) { return; }
+  
+  this->receive();
 
-  if (this->read_rs232()) {
-    this->parse_input();
+  if (millis() - this->lastCall < CYCLE_TIME) {
+    // avoid unnecessary frequent calls 
+    return;
   }
-
-  if (this->actual_action != hoermann_action_none) {
-    this->send_command();
-    this->actual_action = hoermann_action_none;
+  this->lastCall = millis();
+  if(this->sendTime!=0 && (millis() >= this->sendTime)) {
+    ESP_LOGD(TAG, "loop: transmitting");
+    this->transmit();
+    this->sendTime = 0;
   }
+  // if (cfgTrace) {
+  // 	webSocket.loop();
+  // }
+}
+/**
+ * this seems to be a function that only logs stati and makes errorcorrections
+ */
+void UAPBridge::loop_slow() {
+  if (millis() - this->lastCallSlow < CYCLE_TIME_SLOW) {
+    // avoid unnecessary frequent calls 
+    return;
+  }
+  this->lastCallSlow = millis();
 
-  if (this->data_has_changed) {
-    ESP_LOGD(TAG, "UAPBridge_pic16::loop() - received Data has changed.");
-    this->clear_data_changed_flag();
-    this->state_callback_.call();
+  // check for status changes
+  if (this->broadcast_status != this->broadcast_status_old) {
+    ESP_LOGD(TAG, "in broadcast_status != broadcast_status_old");
+    if (this->ignoreNextEvent) {
+      this->ignoreNextEvent = false;
+    } else {
+      hoermann_state_t new_state = hoermann_state_stopped;
+
+      if ((broadcast_status & hoermann_state_open) == hoermann_state_open) {
+        new_state = hoermann_state_open;
+      } else if ((broadcast_status & hoermann_state_closed) == hoermann_state_closed) {
+        new_state = hoermann_state_closed;
+      } else if ((broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_opening) {
+        new_state = hoermann_state_opening;
+      } else if ((broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_closing) {
+        new_state = hoermann_state_closing;
+      } else if ((broadcast_status & hoermann_state_ventpos) == hoermann_state_ventpos) {
+        new_state = hoermann_state_ventpos;
+      } else if ((broadcast_status & hoermann_state_error) == hoermann_state_error) {
+        new_state = hoermann_state_error;
+      }
+
+      if (new_state != this->state) {
+        this->handle_state_change(new_state);
+      }
+
+      this->update_boolean_state(this->relay_enabled, (broadcast_status & hoermann_state_opt_relay) == hoermann_state_opt_relay);
+      this->update_boolean_state(this->light_enabled, (broadcast_status & hoermann_state_light_relay) == hoermann_state_light_relay);
+      this->update_boolean_state(this->venting_enabled, (broadcast_status & hoermann_state_ventpos) == hoermann_state_ventpos);
+      this->update_boolean_state(this->error_state, (broadcast_status & hoermann_state_error) == hoermann_state_error);
+      this->update_boolean_state(this->prewarn_state, (broadcast_status & hoermann_state_prewarn) == hoermann_state_prewarn);
+
+      // --- Auto Error Correction ---
+      if(/*cfgAutoErrorCorr*/true) {
+        // if error just came up
+        if (((broadcast_status & hoermann_state_error) == hoermann_state_error) && ((broadcast_status_old & hoermann_state_error) != hoermann_state_error)) {
+          // if an error is detected and door is open/closed then try to reset it by requesting opening/closing without movement
+          ESP_LOGD(TAG, "autocorrection started");
+          if (broadcast_status & UAP_STATUS_OPEN) {
+            this->setCommand(true, &HoermannCommandUAP::STARTOPENDOOR);
+          } else if (broadcast_status & UAP_STATUS_CLOSED) {
+            this->setCommand(true, &HoermannCommandUAP::STARTCLOSEDOOR);
+          }
+          autoErrorCorrInProgress = true;
+        }
+        // HINT: i guess if light is on it is sufficent to toggle the light off to reset the error
+        // HINT: propably not. this will disable the lamp after correcting the error
+        // or both
+        if (autoErrorCorrInProgress && (broadcast_status & UAP_STATUS_LIGHT_RELAY)) {
+          this->setCommand(true, &HoermannCommandUAP::STARTTOGGLELAMP);
+          autoErrorCorrInProgress = false;
+        }
+      }
+      // --- Auto Error Correction ---
+    }
+  }
+  broadcast_status_old = broadcast_status;
+  
+  // // store the last move
+  // if (broadcast_status & UAP_STATUS_MOVING) {
+  //   if (broadcast_status & UAP_STATUS_DIRECTION) {
+  //     lastMove = DOWN;
+  //   } else {
+  //     lastMove = UP;
+  //   }
+  // }
+}
+
+void UAPBridge::receive() {
+  uint8_t   length  = 0;
+  uint8_t   counter = 0;
+  boolean   newData = false;
+  boolean   valid = false; // this is a validation flag
+  while (this->available()) {
+    //ESP_LOGE(TAG, "in Serial2.available()");
+    // if (cfgTrace && byteCnt > 5 && traceActive) {
+    // 	// data have not been fetched and will be ignored --> log them at least for debugging purposes
+    // 	char temp[4];
+    // 	sprintf_P(temp, "%02X ", rxData[0]);
+    // 	// webSocket.broadcastTXT(temp);
+    // }
+    
+    // shift old elements and read new; only the last 5 bytes are evaluated; if there are more in the buffer, the older ones are ignored
+    for (uint8_t i = 0; i < 4; i++) {
+      rxData[i] = rxData[i+1];
+    }
+    if(this->read_byte(&rxData[4])){
+      //if read was successful
+      byteCnt++;
+    }
+    newData = true;
+  }
+  if (newData) {
+    //ESP_LOGE(TAG, "new data received");
+    newData = false;
+    // Slave scan
+    // 28 82 01 80 06
+    if (rxData[0] == UAP1_ADDR) {
+      length = rxData[1] & 0x0F;
+      if (rxData[2] == CMD_SLAVE_SCAN && rxData[3] == UAP1_ADDR_MASTER && length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
+        valid = true;
+        // if (cfgTrace) { 
+        //   printData(rxData, 0, 5); Serial.println("SlaveScan"); 
+        // }
+        counter = (rxData[1] & 0xF0) + 0x10;
+        txData[0] = UAP1_ADDR_MASTER;
+        txData[1] = 0x02 | counter;
+        txData[2] = UAP1_TYPE;
+        txData[3] = UAP1_ADDR;
+        txData[4] = calc_crc8(txData, 4);
+        txLength = 5;
+        sendTime = millis() + TX_DELAY;
+      }
+    }
+    // Broadcast status
+    // 00 92 12 02 35
+    if (rxData[0] == BROADCAST_ADDR) {
+      length = rxData[1] & 0x0F;
+      if (length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
+        valid = true;
+        // if (cfgTrace) { 
+        //   printData(rxData, 0, 5); Serial.println("      Broadcast"); 
+        // }
+        broadcast_status = rxData[2];
+        broadcast_status |= (uint16_t)rxData[3] << 8;
+      }
+    }
+    // Slave status request (only 4 byte --> other indices of rxData!)
+    // 28 A1 20 2E
+    if (rxData[1] == UAP1_ADDR) {
+      length = rxData[2] & 0x0F;
+      if (rxData[3] == CMD_SLAVE_STATUS_REQUEST && length == 1 && calc_crc8(&rxData[1], length + 3) == 0x00) {
+        valid = true;
+        // if (cfgTrace) { 
+        //   printData(rxData, 1, 5); Serial.println("         Slave status request"); 
+        // }
+        counter = (rxData[2] & 0xF0) + 0x10;
+        txData[0] = UAP1_ADDR_MASTER;
+        txData[1] = 0x03 | counter;
+        txData[2] = CMD_SLAVE_STATUS_RESPONSE;
+        txData[3] = (uint8_t)(nextCommand & 0xFF);
+        txData[4] = (uint8_t)((nextCommand >> 8) & 0xFF);
+        nextCommand = hoermann_action_none;
+        txData[5] = calc_crc8(txData, 5);
+        txLength = 6;
+        sendTime = millis() + TX_DELAY;
+      }
+    }
+    // Update valid_broadcast if a non-default message is received
+    if (!this->valid_broadcast && (this->rxData[3] != 0 || this->rxData[4] != 0)) {
+      this->valid_broadcast = true;
+      this->data_has_changed = true;
+    }
+    // just print the data
+    // if (cfgTrace && byteCnt >= 5) {
+    //   printData(rxData, 0, 5);
+    //   Serial.println("");
+    // }	
   }
 }
 
-void UAPBridge_pic16::add_on_state_callback(std::function<void()> &&callback) {
+void UAPBridge::transmit() {
+  // if (cfgTrace) {
+  // 	printData(txData, 0, txLength);
+  // 	for (uint8_t i = 0; i < 7-txLength; i++) {
+  // 		Serial.print("   ");  // add some space for alignment of log
+  // 	}
+  // }
+  // Generate Sync break
+  if (this->rts != -1) {
+    digitalWrite(this->rts, HIGH);		// LOW = listen, HIGH = transmit
+  }
+  this->set_baud_rate(9600);
+  this->set_data_bits(7);
+  this->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
+  this->set_stop_bits(1);
+  this->write_byte(0x00);
+  this->flush();
+
+  // Transmit
+  this->set_baud_rate(19200);
+  this->set_data_bits(8);
+  this->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
+  this->set_stop_bits(1);
+  this->write_array(txData, txLength);
+  this->flush();
+
+  if (this->rts != -1) {
+    digitalWrite(this->rts, LOW);		// LOW = listen, HIGH = transmit
+  }
+  // if (cfgTrace) {
+  // 	Serial.print("TX, "); Serial.println(millis()-sendTime);
+  // }
+}
+/**
+ * Helper to set next Command and *not* skip Current Command before end was sent
+ */
+void UAPBridge::setCommand(bool cond, const hoermann_action_t *command) {
+  if (cond)
+  {
+    if (nextCommand != hoermann_action_none)
+    {
+      ESP_LOGW(TAG, "Last Command was not yet fetched by modbus!");
+    }
+    else
+    {
+      this->next_action = command;
+      this->ignoreNextEvent = true;
+    }
+  }
+}
+
+void UAPBridge::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void UAPBridge_pic16::action_open() {
+void UAPBridge::action_open() {
   ESP_LOGD(TAG, "Action: open called");
-  this->actual_action = hoermann_action_open;
+  this->setCommand(true, hoermann_action_open);
 }
 
-void UAPBridge_pic16::action_close() {
+void UAPBridge::action_close() {
   ESP_LOGD(TAG, "Action: close called");
-  this->actual_action = hoermann_action_close;
+  this->setCommand(true, hoermann_action_close);
 }
 
-void UAPBridge_pic16::action_stop() {
+void UAPBridge::action_stop() {
   ESP_LOGD(TAG, "Action: stop called");
-  this->actual_action = hoermann_action_stop;
+  this->setCommand(true, hoermann_action_stop);
 }
 
-void UAPBridge_pic16::action_venting() {
+void UAPBridge::action_venting() {
   ESP_LOGD(TAG, "Action: venting called");
-  this->actual_action = hoermann_action_venting;
+  this->setCommand(true, hoermann_action_venting);
 }
 
-void UAPBridge_pic16::action_toggle_light() {
+void UAPBridge::action_toggle_light() {
   ESP_LOGD(TAG, "Action: toggle light called");
-  this->actual_action = hoermann_action_toggle_light;
+  this->setCommand(true, hoermann_action_toggle_light);
 }
 
-UAPBridge_pic16::hoermann_state_t UAPBridge_pic16::get_state() {
-  return this->actual_state;
+UAPBridge::hoermann_state_t UAPBridge::get_state() {
+  return this->state;
 }
 
-std::string UAPBridge_pic16::get_state_string() {
-  return this->actual_state_string;
+std::string UAPBridge::get_state_string() {
+  return this->state_string;
 }
 
-void UAPBridge_pic16::set_venting(bool state) {
-  this->venting_enabled = state;
+void UAPBridge::set_venting(bool state) {
+  this->venting_enabled = state; // TODO maybe unneeded
   if (state) {
     this->action_venting();
   } else {
@@ -78,163 +301,88 @@ void UAPBridge_pic16::set_venting(bool state) {
   ESP_LOGD(TAG, "Venting state set to %s", state ? "ON" : "OFF");
 }
 
-bool UAPBridge_pic16::get_venting_enabled() {
-  return this->venting_enabled;
+bool UAPBridge::get_venting_enabled() {
+  return this->venting_enabled; // TODO maybe unneeded
 }
 
-void UAPBridge_pic16::set_light(bool state) {
-  this->light_enabled = state;
-  if (state) {
-    this->action_toggle_light();
-  }
+void UAPBridge::set_light(bool state) {
+  this->light_enabled = state;// TODO maybe unneeded
+  this->setCommand(state, hoermann_action_toggle_light);
   ESP_LOGD(TAG, "Light state set to %s", state ? "ON" : "OFF");
 }
 
-bool UAPBridge_pic16::get_light_enabled() {
-  return this->light_enabled;
+bool UAPBridge::get_light_enabled() {
+  return this->light_enabled;// TODO maybe unneeded
 }
 
-bool UAPBridge_pic16::has_data_changed() {
+bool UAPBridge::has_data_changed() {
   return this->data_has_changed;
 }
 
-void UAPBridge_pic16::clear_data_changed_flag() {
+void UAPBridge::clear_data_changed_flag() {
   this->data_has_changed = false;
 }
 
-bool UAPBridge_pic16::read_rs232() {
-  static uint8_t counter = 0;
-  static uint8_t len = 0;
+uint8_t UAPBridge::calc_crc8(uint8_t *p_data, uint8_t length) {
+  uint8_t i;
   uint8_t data;
-
-  while (this->available() > 0) {
-    data = (uint8_t)this->read();
-
-    if (data == SYNC_BYTE && counter == 0) {
-      this->rx_buffer[counter++] = data;
-      len = 0;
-    } else if (counter > 0) {
-      this->rx_buffer[counter++] = data;
-      if (counter == 3) {
-        if (data < 16) {
-          len = data + 4; // 3 = SYNC + CMD + LEN + CHK, limit to 15 data bytes
-        } else {
-          counter = 0;  // Reset if length is invalid
-        }
-      } else if (counter == len) {
-        if (this->calc_checksum(this->rx_buffer, len - 1) == data) {
-          // Final check: make sure the length and checksum are valid
-          if (len > 0) {  // You could add extra checks here
-            counter = 0;
-            this->last_parse_time = millis(); // Update last parse time here
-            return true;
-          }
-        }
-        counter = 0;  // Reset if checksum doesn't match
-      }
-    } else {
-      ESP_LOGD(TAG, "read_rs232, wrong SYNC byte data = %i", data);
-    }
+  uint8_t crc = 0xF3;
+  
+  for(i = 0; i < length; i++) {
+    /* XOR-in next input byte */
+    data = *p_data ^ crc;
+    p_data++;
+    /* get current CRC value = remainder */
+    crc = crctable[data];
   }
-  return false;
-}
-
-void UAPBridge_pic16::parse_input() {
-  if (this->rx_buffer[1] == 0x00 && this->rx_buffer[2] == 0x02) {
-    hoermann_state_t new_state = hoermann_state_stopped;
-
-    if ((this->rx_buffer[3] & 0x01) == 0x01) {
-      new_state = hoermann_state_open;
-    } else if ((this->rx_buffer[3] & 0x02) == 0x02) {
-      new_state = hoermann_state_closed;
-    } else if ((this->rx_buffer[3] & 0x60) == 0x40) {
-      new_state = hoermann_state_opening;
-    } else if ((this->rx_buffer[3] & 0x60) == 0x60) {
-      new_state = hoermann_state_closing;
-    } else if ((this->rx_buffer[3] & 0x80) == 0x80) {
-      new_state = hoermann_state_venting;
-    } else if ((this->rx_buffer[3] & 0x10) == 0x10) {
-      new_state = hoermann_state_error;
-    }
-
-    if (new_state != this->actual_state) {
-      this->handle_state_change(new_state);
-    }
-
-    this->update_boolean_state(this->relay_enabled, (this->rx_buffer[3] & 0x04) == 0x04);
-    this->update_boolean_state(this->light_enabled, (this->rx_buffer[3] & 0x08) == 0x08);
-    this->update_boolean_state(this->venting_enabled, (this->rx_buffer[3] & 0x80) == 0x80);
-    this->update_boolean_state(this->error_state, (this->rx_buffer[3] & 0x10) == 0x10);
-    this->update_boolean_state(this->prewarn_state, (this->rx_buffer[4] & 0x01) == 0x01);
-
-    // Update valid_broadcast if a non-default message is received
-    if (!this->valid_broadcast && (this->rx_buffer[3] != 0 || this->rx_buffer[4] != 0)) {
-      this->valid_broadcast = true;
-      this->data_has_changed = true;
-    }
-
-    if (!this->pic16_com) {
-      this->pic16_com = true;
-      this->data_has_changed = true;
-    }
-  }
-}
-
-
-void UAPBridge_pic16::send_command() {
-  this->output_buffer[0] = SYNC_BYTE;
-  this->output_buffer[1] = 0x01;
-  this->output_buffer[2] = 0x01;
-  this->output_buffer[3] = (uint8_t)this->actual_action;
-  this->output_buffer[4] = this->output_buffer[0] + this->output_buffer[1] + this->output_buffer[2] + this->output_buffer[3];
-  this->write_array(&this->output_buffer[0], 5);
-}
-
-uint8_t UAPBridge_pic16::calc_checksum(uint8_t *p_data, uint8_t length) {
-  uint8_t crc = 0;
-  for (uint8_t i = 0; i < length; ++i) {
-    crc += p_data[i];
-  }
+  
   return crc;
 }
+// uint8_t UAPBridge::calc_checksum(uint8_t *p_data, uint8_t length) {
+//   uint8_t crc = 0;
+//   for (uint8_t i = 0; i < length; ++i) {
+//     crc += p_data[i];
+//   }
+//   return crc;
+// }
 
-void UAPBridge_pic16::handle_state_change(hoermann_state_t new_state) {
-  this->actual_state = new_state;
+void UAPBridge::handle_state_change(hoermann_state_t new_state) {
+  this->state = new_state;
 
   switch (new_state) {
     case hoermann_state_open:
-      this->actual_state_string = "Open";
+      this->state_string = "Open";
       break;
     case hoermann_state_closed:
-      this->actual_state_string = "Closed";
+      this->state_string = "Closed";
       break;
     case hoermann_state_opening:
-      this->actual_state_string = "Opening";
+      this->state_string = "Opening";
       break;
     case hoermann_state_closing:
-      this->actual_state_string = "Closing";
+      this->state_string = "Closing";
       break;
-    case hoermann_state_venting:
-      this->actual_state_string = "Venting";
+    case hoermann_state_ventpos:
+      this->state_string = "Venting";
       break;
     case hoermann_state_error:
-      this->actual_state_string = "Error";
+      this->state_string = "Error";
       break;
     case hoermann_state_stopped:
     default:
-      this->actual_state_string = "Stopped";
+      this->state_string = "Stopped";
       break;
   }
 
   this->data_has_changed = true;
 }
 
-void UAPBridge_pic16::update_boolean_state(bool &current_state, bool new_state) {
+void UAPBridge::update_boolean_state(bool &current_state, bool new_state) {
   if (current_state != new_state) {
     current_state = new_state;
     this->data_has_changed = true;
   }
 }
 
-}  // namespace uapbridge_pic16
+}  // namespace uapbridge
 }  // namespace esphome
