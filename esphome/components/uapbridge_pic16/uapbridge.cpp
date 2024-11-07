@@ -1,4 +1,4 @@
-#include "uapbridge_pic16.h"
+#include "uapbridge.h"
 
 namespace esphome {
 namespace uapbridge {
