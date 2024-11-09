@@ -5,6 +5,11 @@ namespace uapbridge {
 static const char *const TAG = "uapbridge";
 
 void UAPBridge::setup() {
+  this->rts_pin_->setup();
+  this->rts_pin_->pin_mode(gpio::Flags::FLAG_OUTPUT);
+  if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->digital_write(false);// LOW(false) = listen, HIGH(true) = transmit
+  }
   ESP_LOGCONFIG(TAG, "Garage setup called!");
 }
 
@@ -183,10 +188,10 @@ void UAPBridge::receive() {
 
 void UAPBridge::transmit() {
   ESP_LOGVV(TAG, "Transmit: %s", printData(this->txData, 0, this->txLength));
-  // Generate Sync break
-  if (this->rts != -1) {
-    digitalWrite(this->rts, HIGH);		// LOW = listen, HIGH = transmit
+  if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->digital_write(true);// LOW(false) = listen, HIGH(true) = transmit
   }
+  // Generate Sync break
   this->parent_->set_baud_rate(9600);
   this->parent_->set_data_bits(7);
   this->parent_->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
@@ -204,6 +209,9 @@ void UAPBridge::transmit() {
   this->write_array(this->txData, this->txLength);
   this->flush();
 
+  if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->digital_write(false);// LOW(false) = listen, HIGH(true) = transmit
+  }
   
   ESP_LOGVV(TAG, "TX duration: %dms", millis() - this->sendTime);
 }
