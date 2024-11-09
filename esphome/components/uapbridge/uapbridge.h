@@ -7,7 +7,6 @@
 
 #define CYCLE_TIME                1   // ms
 #define CYCLE_TIME_SLOW         100   // ms
-#define TX_DELAY                  3   // ms
 
 #define BROADCAST_ADDR            0x00
 #define UAP1_ADDR                 0x28

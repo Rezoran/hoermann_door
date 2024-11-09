@@ -181,19 +181,21 @@ void UAPBridge::transmit() {
   if (this->rts != -1) {
     digitalWrite(this->rts, HIGH);		// LOW = listen, HIGH = transmit
   }
-  this->set_baud_rate(9600);
-  this->set_data_bits(7);
-  this->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
-  this->set_stop_bits(1);
+  this->parent_->set_baud_rate(9600);
+  this->parent_->set_data_bits(7);
+  this->parent_->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
+  this->parent_->set_stop_bits(1);
+  this->parent_->load_settings(false);
   this->write_byte(0x00);
   this->flush();
 
   // Transmit
-  this->set_baud_rate(19200);
-  this->set_data_bits(8);
-  this->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
-  this->set_stop_bits(1);
-  this->write_array(txData, txLength);
+  this->parent_->set_baud_rate(19200);
+  this->parent_->set_data_bits(8);
+  this->parent_->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
+  this->parent_->set_stop_bits(1);
+  this->parent_->load_settings(false);
+  this->write_array(this->txData, this->txLength);
   this->flush();
 
   
