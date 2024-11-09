@@ -59,11 +59,11 @@ void UAPBridge::loop_slow() {
         this->handle_state_change(new_state);
       }
 
-      this->update_boolean_state(this->relay_enabled, (broadcast_status & hoermann_state_opt_relay) == hoermann_state_opt_relay);
-      this->update_boolean_state(this->light_enabled, (broadcast_status & hoermann_state_light_relay) == hoermann_state_light_relay);
-      this->update_boolean_state(this->venting_enabled, (broadcast_status & hoermann_state_ventpos) == hoermann_state_ventpos);
-      this->update_boolean_state(this->error_state, (broadcast_status & hoermann_state_error) == hoermann_state_error);
-      this->update_boolean_state(this->prewarn_state, (broadcast_status & hoermann_state_prewarn) == hoermann_state_prewarn);
+      this->update_boolean_state("relay", this->relay_enabled, (this->broadcast_status & hoermann_state_opt_relay));
+      this->update_boolean_state("light", this->light_enabled, (this->broadcast_status & hoermann_state_light_relay));
+      this->update_boolean_state("vent", this->venting_enabled, (this->broadcast_status & hoermann_state_ventpos));
+      this->update_boolean_state("err", this->error_state, (this->broadcast_status & hoermann_state_error));
+      this->update_boolean_state("prewarn", this->prewarn_state, (this->broadcast_status & hoermann_state_prewarn));
 
       // --- Auto Error Correction ---
       if(/*cfgAutoErrorCorr*/true) {
@@ -346,7 +346,8 @@ void UAPBridge::handle_state_change(hoermann_state_t new_state) {
   this->data_has_changed = true;
 }
 
-void UAPBridge::update_boolean_state(bool &current_state, bool new_state) {
+void UAPBridge::update_boolean_state(const char * name, bool &current_state, bool new_state) {
+  ESP_LOGV(TAG, "update_boolean_state: %s from %s to %s", name, current_state ? "true" : "false", new_state ? "true" : "false");
   if (current_state != new_state) {
     current_state = new_state;
     this->data_has_changed = true;

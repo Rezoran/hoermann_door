@@ -97,6 +97,7 @@ class UAPBridge : public uart::UARTDevice, public Component {
     // Internal methods
     void handle_state_change(hoermann_state_t new_state);
     char* printData(uint8_t *p_data, uint8_t from, uint8_t to);
+    void update_boolean_state(const char * name, bool &current_state, bool new_state);
     uint32_t lastCall       = 0;
     uint32_t lastCallSlow   = 0;
     uint16_t broadcast_status = 0;
