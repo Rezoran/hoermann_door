@@ -25,16 +25,21 @@ class UAPBridge : public uart::UARTDevice, public Component {
   public:
     // Enumeration for actions
     enum hoermann_action_t {
-      hoermann_action_stop = 0x0000,
-      hoermann_action_open = 0x1001,
-      hoermann_action_close = 0x1002,
-      hoermann_action_venting = 0x1010,
-      hoermann_action_toggle_light = 0x1008,
-      hoermann_action_none = 0x1000
+      hoermann_action_stop          = 0x10FF, // thanks to https://github.com/avshrs/ESP32_Hormann_Supramatic_e3/blob/main/src/hoermann.h#L20 !
+      hoermann_action_open          = 0x1001,
+      hoermann_action_close         = 0x1002,
+    /*hoermann_action_impulse       = 0x1004, //only for reference */
+      hoermann_action_toggle_light  = 0x1008,
+      hoermann_action_venting       = 0x1010,
+    /*hoermann_action_test1         = 0x1020, //no reaction on my E3
+      hoermann_action_test2         = 0x1040,
+      hoermann_action_test3         = 0x1080,*/
+      hoermann_action_none          = 0x1000
     };
 
     // Enumeration for states
     enum hoermann_state_t {
+      hoermann_state_stopped      = 0x0000,
       hoermann_state_open         = 0x0001,
       hoermann_state_closed       = 0x0002,
       hoermann_state_opt_relay    = 0x0004,
@@ -84,30 +89,32 @@ class UAPBridge : public uart::UARTDevice, public Component {
     bool auto_correction = false;
     // \yaml parameters
     CallbackManager<void()> state_callback_;
-    hoermann_state_t state = nullptr;
-    hoermann_state_t last_door_state = nullptr;
+    hoermann_state_t state = hoermann_state_stopped;
     hoermann_action_t next_action = hoermann_action_none;
-    std::string state_string = "unknown";
-
+    // state variables
     bool venting_enabled = false;
     bool light_enabled = false;
     bool relay_enabled = false;
     bool error_state = false;
     bool prewarn_state = false;
-    bool pic16_com = false;
     bool valid_broadcast = false;
     bool data_has_changed = false;
-
-    uint32_t last_parse_time = millis();
-
+    std::string state_string = "unknown";
+    // \state variables
     // Internal methods
+    void loop_fast();
+    void loop_slow();
+    void receive();
+    void transmit();
+    void setCommand(bool cond, const hoermann_action_t command);
+    uint8_t calc_crc8(uint8_t *p_data, uint8_t length);
     void handle_state_change(hoermann_state_t new_state);
     char* printData(uint8_t *p_data, uint8_t from, uint8_t to);
     void update_boolean_state(const char * name, bool &current_state, bool new_state);
+    // internal function variables
     uint32_t lastCall       = 0;
     uint32_t lastCallSlow   = 0;
     uint16_t broadcast_status = 0;
-    uint16_t broadcast_status_old = 0;
     bool ignoreNextEvent = false;     // will also ignore wrong edge detection after reset
     bool autoErrorCorrInProgress = false;
     uint8_t    rxData[5]       = {0, 0, 0, 0, 0};
@@ -115,12 +122,7 @@ class UAPBridge : public uart::UARTDevice, public Component {
     uint8_t    txLength        = 0;
     uint8_t    byteCnt         = 0;
     uint32_t   sendTime        = 0;
-    void loop_fast();
-    void loop_slow();
-    void receive();
-    void transmit();
-    uint8_t UAPBridge::calc_crc8(uint8_t *p_data, uint8_t length);
-    static const uint8_t crctable[256] = {
+    const uint8_t crctable[256] = {
       0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15, 0x38, 0x3F, 0x36, 0x31, 0x24, 0x23, 0x2A, 0x2D,
       0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65, 0x48, 0x4F, 0x46, 0x41, 0x54, 0x53, 0x5A, 0x5D,
       0xE0, 0xE7, 0xEE, 0xE9, 0xFC, 0xFB, 0xF2, 0xF5, 0xD8, 0xDF, 0xD6, 0xD1, 0xC4, 0xC3, 0xCA, 0xCD,

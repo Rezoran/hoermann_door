@@ -159,7 +159,7 @@ void UAPBridge::receive() {
       length = this->rxData[1] & 0x0F;
       if (length == 2 && calc_crc8(this->rxData, length + 3) == 0x00) {
         ESP_LOGVV(TAG, "Broadcast: %s", printData(this->rxData, 0, 5));
-        ESP_LOGV(TAG, "->      Broadcast"); 
+        ESP_LOGV(TAG, "->      Broadcast");
         this->broadcast_status = this->rxData[2];
         this->broadcast_status |= (uint16_t)this->rxData[3] << 8;
       }
@@ -223,7 +223,7 @@ void UAPBridge::transmit() {
   if (this->rts_pin_ != nullptr) {
     this->rts_pin_->digital_write(false);// LOW(false) = listen, HIGH(true) = transmit
   }
-  
+
   ESP_LOGVV(TAG, "TX duration: %dms", millis() - this->sendTime);
 }
 /**
