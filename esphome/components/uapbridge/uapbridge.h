@@ -50,6 +50,7 @@ class UAPBridge : public uart::UARTDevice, public Component {
 
     void setup() override;
     void loop() override;
+    void dump_config() override;
     void add_on_state_callback(std::function<void()> &&callback);
     void set_rts_pin(InternalGPIOPin *rts_pin) { this->rts_pin_ = rts_pin; }
     void set_auto_correction(bool value) { this->auto_correction = value; }

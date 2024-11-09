@@ -23,6 +23,13 @@ void UAPBridge::loop() {
     this->state_callback_.call();
   }
 }
+
+void UAPBridge::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridge");
+  ESP_LOGCONFIG(TAG, "  RTS Pin: %s", this->rts_pin_->dump_summary().c_str());
+  ESP_LOGCONFIG(TAG, "  Auto Correction: %s", this->auto_correction ? "true" : "false");
+}
+
 void UAPBridge::loop_fast() {
   this->receive();
 
