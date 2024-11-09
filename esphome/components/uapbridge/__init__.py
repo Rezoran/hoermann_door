@@ -7,6 +7,7 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["uart"]
 
 CONF_RTS_PIN = "rts_pin"
+CONF_AUTO_CORRECTION = "auto_correction"
 
 # Create UAPBridge namespace
 uapbridge_ns = cg.esphome_ns.namespace("uapbridge")
@@ -18,6 +19,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(UAPBridge),
         cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_AUTO_CORRECTION): cv.boolean,
     }
 ).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
@@ -36,3 +38,6 @@ async def to_code(config):
     if CONF_RTS_PIN in config:
         rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
         cg.add(var.set_rts_pin(rts_pin))
+
+    if CONF_AUTO_CORRECTION in config:
+        cg.add(var.set_auto_correction(config[CONF_AUTO_CORRECTION]))

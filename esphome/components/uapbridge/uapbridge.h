@@ -52,6 +52,7 @@ class UAPBridge : public uart::UARTDevice, public Component {
     void loop() override;
     void add_on_state_callback(std::function<void()> &&callback);
     void set_rts_pin(InternalGPIOPin *rts_pin) { this->rts_pin_ = rts_pin; }
+    void set_auto_correction(bool value) { this->auto_correction = value; }
 
     void action_open();
     void action_close();
@@ -79,6 +80,8 @@ class UAPBridge : public uart::UARTDevice, public Component {
   protected:
     // yaml parameters
     InternalGPIOPin *rts_pin_;
+    bool auto_correction = false;
+    // \yaml parameters
     CallbackManager<void()> state_callback_;
     hoermann_state_t state = nullptr;
     hoermann_state_t last_door_state = nullptr;

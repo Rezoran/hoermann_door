@@ -75,24 +75,27 @@ void UAPBridge::loop_slow() {
       this->update_boolean_state("prewarn", this->prewarn_state, (this->broadcast_status & hoermann_state_prewarn));
 
       // --- Auto Error Correction ---
-      if(/*cfgAutoErrorCorr*/true) {
+      if(this->auto_correction) {
         // if error just came up
-        if (((broadcast_status & hoermann_state_error) == hoermann_state_error) && ((broadcast_status_old & hoermann_state_error) != hoermann_state_error)) {
+        if (((this->broadcast_status & hoermann_state_error) == hoermann_state_error)) {
           // if an error is detected and door is open/closed then try to reset it by requesting opening/closing without movement
           ESP_LOGD(TAG, "autocorrection started");
-          if (broadcast_status & UAP_STATUS_OPEN) {
-            this->setCommand(true, &HoermannCommandUAP::STARTOPENDOOR);
-          } else if (broadcast_status & UAP_STATUS_CLOSED) {
-            this->setCommand(true, &HoermannCommandUAP::STARTCLOSEDOOR);
+          if (new_state == hoermann_state_open) {
+            this->setCommand(true, hoermann_action_open);
+          } else if (new_state == hoermann_state_closed) {
+            this->setCommand(true, hoermann_action_close);
+          } else if (new_state == hoermann_state_stopped) {
+            // in this state it is not possible to clear the error. But the next open or close cycle will clear it
+            this->autoErrorCorrInProgress = false;
           }
-          autoErrorCorrInProgress = true;
+          this->autoErrorCorrInProgress = true;
         }
         // HINT: i guess if light is on it is sufficent to toggle the light off to reset the error
         // HINT: propably not. this will disable the lamp after correcting the error
         // or both
-        if (autoErrorCorrInProgress && (broadcast_status & UAP_STATUS_LIGHT_RELAY)) {
-          this->setCommand(true, &HoermannCommandUAP::STARTTOGGLELAMP);
-          autoErrorCorrInProgress = false;
+        if (this->autoErrorCorrInProgress && (this->broadcast_status & hoermann_state_light_relay)) {
+          this->setCommand(true, hoermann_action_toggle_light);
+          this->autoErrorCorrInProgress = false;
         }
       }
       // --- Auto Error Correction ---
