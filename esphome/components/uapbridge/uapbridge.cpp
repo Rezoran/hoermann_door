@@ -13,9 +13,6 @@ void UAPBridge::loop() {
   this->loop_slow();
 }
 void UAPBridge::loop_fast() {
-  // stop any communication, e.g. during OTA update
-  // if (stopComm) { return; }
-  
   this->receive();
 
   if (millis() - this->lastCall < CYCLE_TIME) {
@@ -28,9 +25,6 @@ void UAPBridge::loop_fast() {
     this->transmit();
     this->sendTime = 0;
   }
-  // if (cfgTrace) {
-  // 	webSocket.loop();
-  // }
 }
 /**
  * this seems to be a function that only logs stati and makes errorcorrections
@@ -42,9 +36,6 @@ void UAPBridge::loop_slow() {
   }
   this->lastCallSlow = millis();
 
-  // check for status changes
-  if (this->broadcast_status != this->broadcast_status_old) {
-    ESP_LOGD(TAG, "in broadcast_status != broadcast_status_old");
     if (this->ignoreNextEvent) {
       this->ignoreNextEvent = false;
     } else {
@@ -97,33 +88,21 @@ void UAPBridge::loop_slow() {
       }
       // --- Auto Error Correction ---
     }
-  }
-  broadcast_status_old = broadcast_status;
-  
-  // // store the last move
-  // if (broadcast_status & UAP_STATUS_MOVING) {
-  //   if (broadcast_status & UAP_STATUS_DIRECTION) {
-  //     lastMove = DOWN;
-  //   } else {
-  //     lastMove = UP;
-  //   }
-  // }
 }
 
 void UAPBridge::receive() {
   uint8_t   length  = 0;
   uint8_t   counter = 0;
-  boolean   newData = false;
-  boolean   valid = false; // this is a validation flag
-  while (this->available()) {
-    //ESP_LOGE(TAG, "in Serial2.available()");
-    // if (cfgTrace && byteCnt > 5 && traceActive) {
-    // 	// data have not been fetched and will be ignored --> log them at least for debugging purposes
-    // 	char temp[4];
-    // 	sprintf_P(temp, "%02X ", rxData[0]);
-    // 	// webSocket.broadcastTXT(temp);
-    // }
-    
+  bool   newData = false;
+  while (this->available() > 0) {
+#if ESPHOME_LOGLEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    if (this->byteCnt > 5) {
+    	// data have not been fetched and will be ignored --> log them at least for debugging purposes
+    	char temp[4];
+    	sprintf(temp, "%02X ", this->rxData[0]);
+    	ESP_LOGVV(TAG, "in receive while avaiable: %s", temp);
+    }
+#endif
     // shift old elements and read new; only the last 5 bytes are evaluated; if there are more in the buffer, the older ones are ignored
     for (uint8_t i = 0; i < 4; i++) {
       rxData[i] = rxData[i+1];
@@ -135,17 +114,15 @@ void UAPBridge::receive() {
     newData = true;
   }
   if (newData) {
-    //ESP_LOGE(TAG, "new data received");
+    ESP_LOGVV(TAG, "new data received");
     newData = false;
     // Slave scan
     // 28 82 01 80 06
     if (rxData[0] == UAP1_ADDR) {
       length = rxData[1] & 0x0F;
       if (rxData[2] == CMD_SLAVE_SCAN && rxData[3] == UAP1_ADDR_MASTER && length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
-        valid = true;
-        // if (cfgTrace) { 
-        //   printData(rxData, 0, 5); Serial.println("SlaveScan"); 
-        // }
+        ESP_LOGVV(TAG, "SlaveScan: %s", printData(this->rxData, 0, 5));
+        ESP_LOGV(TAG, "->      SlaveScan"); 
         counter = (rxData[1] & 0xF0) + 0x10;
         txData[0] = UAP1_ADDR_MASTER;
         txData[1] = 0x02 | counter;
@@ -161,10 +138,8 @@ void UAPBridge::receive() {
     if (rxData[0] == BROADCAST_ADDR) {
       length = rxData[1] & 0x0F;
       if (length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
-        valid = true;
-        // if (cfgTrace) { 
-        //   printData(rxData, 0, 5); Serial.println("      Broadcast"); 
-        // }
+        ESP_LOGVV(TAG, "Broadcast: %s", printData(this->rxData, 0, 5));
+        ESP_LOGV(TAG, "->      Broadcast"); 
         broadcast_status = rxData[2];
         broadcast_status |= (uint16_t)rxData[3] << 8;
       }
@@ -174,10 +149,8 @@ void UAPBridge::receive() {
     if (rxData[1] == UAP1_ADDR) {
       length = rxData[2] & 0x0F;
       if (rxData[3] == CMD_SLAVE_STATUS_REQUEST && length == 1 && calc_crc8(&rxData[1], length + 3) == 0x00) {
-        valid = true;
-        // if (cfgTrace) { 
-        //   printData(rxData, 1, 5); Serial.println("         Slave status request"); 
-        // }
+        ESP_LOGVV(TAG, "Slave status request: %s", printData(this->rxData, 1, 5));
+        ESP_LOGV(TAG, "->      Slave status request");
         counter = (rxData[2] & 0xF0) + 0x10;
         txData[0] = UAP1_ADDR_MASTER;
         txData[1] = 0x03 | counter;
@@ -195,21 +168,17 @@ void UAPBridge::receive() {
       this->valid_broadcast = true;
       this->data_has_changed = true;
     }
+#if ESPHOME_LOGLEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     // just print the data
-    // if (cfgTrace && byteCnt >= 5) {
-    //   printData(rxData, 0, 5);
-    //   Serial.println("");
-    // }	
+    if (this->byteCnt >= 5) {
+      ESP_LOGVV(TAG, "Just printed: %s", printData(this->rxData, 0, 5));
+    }	
+#endif
   }
 }
 
 void UAPBridge::transmit() {
-  // if (cfgTrace) {
-  // 	printData(txData, 0, txLength);
-  // 	for (uint8_t i = 0; i < 7-txLength; i++) {
-  // 		Serial.print("   ");  // add some space for alignment of log
-  // 	}
-  // }
+  ESP_LOGVV(TAG, "Transmit: %s", printData(this->txData, 0, this->txLength));
   // Generate Sync break
   if (this->rts != -1) {
     digitalWrite(this->rts, HIGH);		// LOW = listen, HIGH = transmit
@@ -229,12 +198,8 @@ void UAPBridge::transmit() {
   this->write_array(txData, txLength);
   this->flush();
 
-  if (this->rts != -1) {
-    digitalWrite(this->rts, LOW);		// LOW = listen, HIGH = transmit
-  }
-  // if (cfgTrace) {
-  // 	Serial.print("TX, "); Serial.println(millis()-sendTime);
-  // }
+  
+  ESP_LOGVV(TAG, "TX duration: %dms", millis() - this->sendTime);
 }
 /**
  * Helper to set next Command and *not* skip Current Command before end was sent
@@ -292,7 +257,6 @@ std::string UAPBridge::get_state_string() {
 }
 
 void UAPBridge::set_venting(bool state) {
-  this->venting_enabled = state; // TODO maybe unneeded
   if (state) {
     this->action_venting();
   } else {
@@ -302,17 +266,16 @@ void UAPBridge::set_venting(bool state) {
 }
 
 bool UAPBridge::get_venting_enabled() {
-  return this->venting_enabled; // TODO maybe unneeded
+  return this->venting_enabled;
 }
 
 void UAPBridge::set_light(bool state) {
-  this->light_enabled = state;// TODO maybe unneeded
   this->setCommand(state, hoermann_action_toggle_light);
   ESP_LOGD(TAG, "Light state set to %s", state ? "ON" : "OFF");
 }
 
 bool UAPBridge::get_light_enabled() {
-  return this->light_enabled;// TODO maybe unneeded
+  return this->light_enabled;
 }
 
 bool UAPBridge::has_data_changed() {
@@ -338,13 +301,19 @@ uint8_t UAPBridge::calc_crc8(uint8_t *p_data, uint8_t length) {
   
   return crc;
 }
-// uint8_t UAPBridge::calc_checksum(uint8_t *p_data, uint8_t length) {
-//   uint8_t crc = 0;
-//   for (uint8_t i = 0; i < length; ++i) {
-//     crc += p_data[i];
-//   }
-//   return crc;
-// }
+
+char* UAPBridge::printData(uint8_t *p_data, uint8_t from, uint8_t to) {
+	char temp[4];
+	static char output[30];
+
+	sprintf(output, "%5u: ", millis() & 0xFFFFu);
+	for (uint8_t i = from; i < to; i++) {
+		sprintf(temp, "%02X ", p_data[i]);
+		strcat(output, temp);
+	}
+	this->byteCnt = 0;
+  return &output[0];
+}
 
 void UAPBridge::handle_state_change(hoermann_state_t new_state) {
   this->state = new_state;
