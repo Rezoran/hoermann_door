@@ -11,6 +11,12 @@ void UAPBridge::setup() {
 void UAPBridge::loop() {
   this->loop_fast();
   this->loop_slow();
+
+  if (this->data_has_changed) {
+    ESP_LOGD(TAG, "UAPBridge::loop() - received Data has changed.");
+    this->clear_data_changed_flag();
+    this->state_callback_.call();
+  }
 }
 void UAPBridge::loop_fast() {
   this->receive();
