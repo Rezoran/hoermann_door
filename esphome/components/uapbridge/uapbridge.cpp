@@ -32,7 +32,7 @@ void UAPBridge::loop_fast() {
   }
   this->lastCall = millis();
   if(this->sendTime!=0 && (millis() >= this->sendTime)) {
-    ESP_LOGD(TAG, "loop: transmitting");
+    ESP_LOGVV(TAG, "loop: transmitting");
     this->transmit();
     this->sendTime = 0;
   }
@@ -50,6 +50,7 @@ void UAPBridge::loop_slow() {
     if (this->ignoreNextEvent) {
       this->ignoreNextEvent = false;
     } else {
+      ESP_LOGD(TAG, "loop_slow called - %02x %02x == %d", (uint8_t)(this->broadcast_status >> 8), (uint8_t)this->broadcast_status, this->broadcast_status);
       hoermann_state_t new_state = hoermann_state_stopped;
 
       if (this->broadcast_status & hoermann_state_open) {
@@ -330,7 +331,7 @@ char* UAPBridge::printData(uint8_t *p_data, uint8_t from, uint8_t to) {
 
 void UAPBridge::handle_state_change(hoermann_state_t new_state) {
   this->state = new_state;
-
+  ESP_LOGV(TAG, "State changed from %s to %d", this->state_string.c_str(), new_state);
   switch (new_state) {
     case hoermann_state_open:
       this->state_string = "Open";
