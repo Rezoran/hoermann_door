@@ -355,12 +355,11 @@ void UAPBridge::handle_state_change(hoermann_state_t new_state) {
     case hoermann_state_ventpos:
       this->state_string = "Venting";
       break;
-    case hoermann_state_error:
-      this->state_string = "Error";
-      break;
     case hoermann_state_stopped:
-    default:
       this->state_string = "Stopped";
+      break;
+    default:
+      this->state_string = "Error";
       break;
   }
 
