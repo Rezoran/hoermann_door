@@ -41,18 +41,16 @@ void UAPBridge::loop_slow() {
     } else {
       hoermann_state_t new_state = hoermann_state_stopped;
 
-      if ((broadcast_status & hoermann_state_open) == hoermann_state_open) {
+      if (this->broadcast_status & hoermann_state_open) {
         new_state = hoermann_state_open;
-      } else if ((broadcast_status & hoermann_state_closed) == hoermann_state_closed) {
+      } else if (this->broadcast_status & hoermann_state_closed) {
         new_state = hoermann_state_closed;
-      } else if ((broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_opening) {
+      } else if ((this->broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_opening) {
         new_state = hoermann_state_opening;
-      } else if ((broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_closing) {
+      } else if ((this->broadcast_status & (hoermann_state_direction | hoermann_state_moving)) == hoermann_state_closing) {
         new_state = hoermann_state_closing;
-      } else if ((broadcast_status & hoermann_state_ventpos) == hoermann_state_ventpos) {
+      } else if (this->broadcast_status & hoermann_state_ventpos) {
         new_state = hoermann_state_ventpos;
-      } else if ((broadcast_status & hoermann_state_error) == hoermann_state_error) {
-        new_state = hoermann_state_error;
       }
 
       if (new_state != this->state) {
@@ -105,11 +103,11 @@ void UAPBridge::receive() {
 #endif
     // shift old elements and read new; only the last 5 bytes are evaluated; if there are more in the buffer, the older ones are ignored
     for (uint8_t i = 0; i < 4; i++) {
-      rxData[i] = rxData[i+1];
+      this->rxData[i] = this->rxData[i+1];
     }
-    if(this->read_byte(&rxData[4])){
+    if(this->read_byte(&this->rxData[4])){
       //if read was successful
-      byteCnt++;
+      this->byteCnt++;
     }
     newData = true;
   }
@@ -118,49 +116,49 @@ void UAPBridge::receive() {
     newData = false;
     // Slave scan
     // 28 82 01 80 06
-    if (rxData[0] == UAP1_ADDR) {
-      length = rxData[1] & 0x0F;
-      if (rxData[2] == CMD_SLAVE_SCAN && rxData[3] == UAP1_ADDR_MASTER && length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
+    if (this->rxData[0] == UAP1_ADDR) {
+      length = this->rxData[1] & 0x0F;
+      if (this->rxData[2] == CMD_SLAVE_SCAN && this->rxData[3] == UAP1_ADDR_MASTER && length == 2 && calc_crc8(this->rxData, length + 3) == 0x00) {
         ESP_LOGVV(TAG, "SlaveScan: %s", printData(this->rxData, 0, 5));
         ESP_LOGV(TAG, "->      SlaveScan"); 
-        counter = (rxData[1] & 0xF0) + 0x10;
-        txData[0] = UAP1_ADDR_MASTER;
-        txData[1] = 0x02 | counter;
-        txData[2] = UAP1_TYPE;
-        txData[3] = UAP1_ADDR;
-        txData[4] = calc_crc8(txData, 4);
-        txLength = 5;
-        sendTime = millis() + TX_DELAY;
+        counter = (this->rxData[1] & 0xF0) + 0x10;
+        this->txData[0] = UAP1_ADDR_MASTER;
+        this->txData[1] = 0x02 | counter;
+        this->txData[2] = UAP1_TYPE;
+        this->txData[3] = UAP1_ADDR;
+        this->txData[4] = calc_crc8(this->txData, 4);
+        this->txLength = 5;
+        this->sendTime = millis();
       }
     }
     // Broadcast status
     // 00 92 12 02 35
-    if (rxData[0] == BROADCAST_ADDR) {
-      length = rxData[1] & 0x0F;
-      if (length == 2 && calc_crc8(rxData, length + 3) == 0x00) {
+    if (this->rxData[0] == BROADCAST_ADDR) {
+      length = this->rxData[1] & 0x0F;
+      if (length == 2 && calc_crc8(this->rxData, length + 3) == 0x00) {
         ESP_LOGVV(TAG, "Broadcast: %s", printData(this->rxData, 0, 5));
         ESP_LOGV(TAG, "->      Broadcast"); 
-        broadcast_status = rxData[2];
-        broadcast_status |= (uint16_t)rxData[3] << 8;
+        this->broadcast_status = this->rxData[2];
+        this->broadcast_status |= (uint16_t)this->rxData[3] << 8;
       }
     }
     // Slave status request (only 4 byte --> other indices of rxData!)
     // 28 A1 20 2E
-    if (rxData[1] == UAP1_ADDR) {
-      length = rxData[2] & 0x0F;
-      if (rxData[3] == CMD_SLAVE_STATUS_REQUEST && length == 1 && calc_crc8(&rxData[1], length + 3) == 0x00) {
+    if (this->rxData[1] == UAP1_ADDR) {
+      length = this->rxData[2] & 0x0F;
+      if (this->rxData[3] == CMD_SLAVE_STATUS_REQUEST && length == 1 && calc_crc8(&this->rxData[1], length + 3) == 0x00) {
         ESP_LOGVV(TAG, "Slave status request: %s", printData(this->rxData, 1, 5));
         ESP_LOGV(TAG, "->      Slave status request");
-        counter = (rxData[2] & 0xF0) + 0x10;
-        txData[0] = UAP1_ADDR_MASTER;
-        txData[1] = 0x03 | counter;
-        txData[2] = CMD_SLAVE_STATUS_RESPONSE;
-        txData[3] = (uint8_t)(nextCommand & 0xFF);
-        txData[4] = (uint8_t)((nextCommand >> 8) & 0xFF);
-        nextCommand = hoermann_action_none;
-        txData[5] = calc_crc8(txData, 5);
-        txLength = 6;
-        sendTime = millis() + TX_DELAY;
+        counter = (this->rxData[2] & 0xF0) + 0x10;
+        this->txData[0] = UAP1_ADDR_MASTER;
+        this->txData[1] = 0x03 | counter;
+        this->txData[2] = CMD_SLAVE_STATUS_RESPONSE;
+        this->txData[3] = (uint8_t)(this->next_action & 0xFF);
+        this->txData[4] = (uint8_t)((this->next_action >> 8) & 0xFF);
+        this->next_action = hoermann_action_none;
+        this->txData[5] = calc_crc8(this->txData, 5);
+        this->txLength = 6;
+        this->sendTime = millis();
       }
     }
     // Update valid_broadcast if a non-default message is received
@@ -204,15 +202,11 @@ void UAPBridge::transmit() {
 /**
  * Helper to set next Command and *not* skip Current Command before end was sent
  */
-void UAPBridge::setCommand(bool cond, const hoermann_action_t *command) {
-  if (cond)
-  {
-    if (nextCommand != hoermann_action_none)
-    {
-      ESP_LOGW(TAG, "Last Command was not yet fetched by modbus!");
-    }
-    else
-    {
+void UAPBridge::setCommand(bool cond, const hoermann_action_t command) {
+  if (cond) {
+    if (this->next_action != hoermann_action_none) {
+      ESP_LOGW(TAG, "Last Command was not yet fetched by modbus! -- action cached %d", this->next_action);
+    } else {
       this->next_action = command;
       this->ignoreNextEvent = true;
     }
