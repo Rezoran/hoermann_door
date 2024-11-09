@@ -246,22 +246,22 @@ void UAPBridge::add_on_state_callback(std::function<void()> &&callback) {
 
 void UAPBridge::action_open() {
   ESP_LOGD(TAG, "Action: open called");
-  this->setCommand(true, hoermann_action_open);
+  this->setCommand(this->state != hoermann_state_open, hoermann_action_open);
 }
 
 void UAPBridge::action_close() {
   ESP_LOGD(TAG, "Action: close called");
-  this->setCommand(true, hoermann_action_close);
+  this->setCommand(this->state != hoermann_state_closed, hoermann_action_close);
 }
 
 void UAPBridge::action_stop() {
   ESP_LOGD(TAG, "Action: stop called");
-  this->setCommand(true, hoermann_action_stop);
+  this->setCommand((this->state == hoermann_state_opening || this->state == hoermann_state_closing), hoermann_action_stop);
 }
 
 void UAPBridge::action_venting() {
   ESP_LOGD(TAG, "Action: venting called");
-  this->setCommand(true, hoermann_action_venting);
+  this->setCommand(this->state != hoermann_state_ventpos, hoermann_action_venting);
 }
 
 void UAPBridge::action_toggle_light() {
@@ -291,7 +291,7 @@ bool UAPBridge::get_venting_enabled() {
 }
 
 void UAPBridge::set_light(bool state) {
-  this->setCommand(state, hoermann_action_toggle_light);
+  this->setCommand((this->light_enabled != state), hoermann_action_toggle_light);
   ESP_LOGD(TAG, "Light state set to %s", state ? "ON" : "OFF");
 }
 
