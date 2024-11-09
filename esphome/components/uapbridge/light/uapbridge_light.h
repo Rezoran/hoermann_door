@@ -3,14 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/output/binary_output.h"
-#include "../uapbridge_pic16.h"
+#include "../uapbridge.h"
 
 namespace esphome {
-namespace uapbridge_pic16 {
+namespace uapbridge {
 
-class UAPBridge_pic16Light : public light::LightOutput, public Component {
+class UAPBridgeLight : public light::LightOutput, public Component {
   public:
-    void set_uapbridge_pic16_parent(UAPBridge_pic16 *parent) { this->parent_ = parent; }
+    void set_uapbridge_parent(UAPBridge *parent) { this->parent_ = parent; }
     light::LightTraits get_traits() override;
     void set_output(output::BinaryOutput *output) { output_ = output; }
     void write_state(light::LightState *state) override;
@@ -20,10 +20,10 @@ class UAPBridge_pic16Light : public light::LightOutput, public Component {
     void setup_state(light::LightState *state) { state_ = state; }
 
   protected:
-    UAPBridge_pic16 *parent_;
+    UAPBridge *parent_;
     output::BinaryOutput *output_;
     light::LightState *state_{nullptr};
 };
 
-}  // namespace uapbridge_pic16
+}  // namespace uapbridge
 }  // namespace esphome
