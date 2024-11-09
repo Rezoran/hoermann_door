@@ -119,7 +119,7 @@ Sender: Slave
 * d0 bits:
     * `0`: Trigger open door
     * `1`: Trigger close door
-    * `2`: Trigger reverse direction (not 100% sure)
+    * `2`: Trigger impulse
     * `3`: Toggle light relais
     * `4`: Trigger venting position
     * `5`: ???
