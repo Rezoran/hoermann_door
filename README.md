@@ -21,5 +21,5 @@ This repo contains the software in form of an esphome component which connects H
 - https://www.ti.com/product/SN65HVD72 off a salvaged board
 - DC/DC 24V -> 5V Step-Down
 ## Possible working setups
-I haven't tested it, but boards from the 4 Series drives that only feature and RS485-UART converter should theoretically work (rts-pin has to be undefined)
+I haven't tested it, but boards from the 4 Series drives that only feature and RS485-UART converter should theoretically work (rts-pin has to be undefined) \
 Otherwise a RS485 Transceiver breakout board should also work 
