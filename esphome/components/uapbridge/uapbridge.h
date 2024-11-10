@@ -85,7 +85,7 @@ class UAPBridge : public uart::UARTDevice, public Component {
 
   protected:
     // yaml parameters
-    InternalGPIOPin *rts_pin_;
+    InternalGPIOPin *rts_pin_ = nullptr;
     bool auto_correction = false;
     // \yaml parameters
     CallbackManager<void()> state_callback_;

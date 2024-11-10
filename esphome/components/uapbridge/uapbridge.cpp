@@ -5,9 +5,9 @@ namespace uapbridge {
 static const char *const TAG = "uapbridge";
 
 void UAPBridge::setup() {
-  this->rts_pin_->setup();
-  this->rts_pin_->pin_mode(gpio::Flags::FLAG_OUTPUT);
   if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->setup();
+    this->rts_pin_->pin_mode(gpio::Flags::FLAG_OUTPUT);
     this->rts_pin_->digital_write(false);// LOW(false) = listen, HIGH(true) = transmit
   }
   ESP_LOGCONFIG(TAG, "Garage setup called!");
@@ -26,7 +26,9 @@ void UAPBridge::loop() {
 
 void UAPBridge::dump_config() {
   ESP_LOGCONFIG(TAG, "UAPBridge");
-  ESP_LOGCONFIG(TAG, "  RTS Pin: %s", this->rts_pin_->dump_summary().c_str());
+  if (this->rts_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  RTS Pin: %s", this->rts_pin_->dump_summary().c_str());
+  }
   ESP_LOGCONFIG(TAG, "  Auto Correction: %s", this->auto_correction ? "true" : "false");
 }
 
