@@ -26,6 +26,7 @@ This repo contains the software in form of an esphome component which connects H
 - esp32 devkit 4
 - DC/DC 24V -> 5V Step-Down
 - https://www.ti.com/product/SN65HVD72 off a salvaged board
+
 OR
 - RS485-UART Coverter HW519
 ## possible working hardware
