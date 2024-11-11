@@ -56,7 +56,7 @@ uart:
 uapbridge:
   id: garage_door_comp
   uart_id: uart_bus
-  rts_pin: 4 # Optional (but not tested without)
+  # rts_pin: 4 # Optional
   auto_correction: True # Optional: attempts to clear errors ("7" on the drive)
 
 cover:
