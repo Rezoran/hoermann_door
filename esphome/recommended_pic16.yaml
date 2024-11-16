@@ -57,12 +57,12 @@ uapbridge_pic16:
   uart_id: uart_bus
 
 cover:
-  - platform: uapbridge_pic16
+  - platform: uapbridge
     name: ${friendly_name}
     device_class: garage
 
 switch:
-  - platform: uapbridge_pic16
+  - platform: uapbridge
     venting_switch:
       id: venting_switch
       name: "${sw_vent}"
@@ -72,7 +72,7 @@ switch:
 #      name: "${sw_light}"
 
 binary_sensor:
-  - platform: uapbridge_pic16
+  - platform: uapbridge
     pic16_com:
       name: "${pic16_com}"
     relay_state:
@@ -85,17 +85,17 @@ binary_sensor:
       name: "${got_valid_broadcast}"
 
 output:
-  - platform: uapbridge_pic16
+  - platform: uapbridge
     id: gd_light
 
 light:
-  - platform: binary
+  - platform: uapbridge
     id: my_light
     name: "${light}"
     output: gd_light
 
 text_sensor:
-  - platform: uapbridge_pic16
+  - platform: uapbridge
     id: garage_door_state
     name: "${state}"
     #uncomment the line for custom text
