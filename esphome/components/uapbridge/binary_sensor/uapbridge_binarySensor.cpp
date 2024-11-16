@@ -1,88 +1,88 @@
-#include "uapbridge_pic16_binarySensor.h"
+#include "uapbridge_binarySensor.h"
 
 namespace esphome {
-namespace uapbridge_pic16 {
+namespace uapbridge {
 
-static const char* const TAG = "uapbridge_pic16.binary_sensor";
+static const char* const TAG = "uapbridge.binary_sensor";
 
 // Relay Sensor
-void UAPBridge_pic16RelaySensor::setup() {
+void UAPBridgeRelaySensor::setup() {
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
   this->publish_state(this->parent_->get_relay_enabled());
 }
 
-void UAPBridge_pic16RelaySensor::on_event_triggered() {
+void UAPBridgeRelaySensor::on_event_triggered() {
   if (this->parent_->get_relay_enabled() != this->state) {
     this->publish_state(this->parent_->get_relay_enabled());
   }
 }
 
-void UAPBridge_pic16RelaySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16RelaySensor");
+void UAPBridgeRelaySensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgeRelaySensor");
 }
 
 // Communication Sensor
-void UAPBridge_pic16Communication::setup() {
+void UAPBridgeCommunication::setup() {
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
   this->publish_state(this->parent_->get_pic16_com());
 }
 
-void UAPBridge_pic16Communication::on_event_triggered() {
+void UAPBridgeCommunication::on_event_triggered() {
   if (this->parent_->get_pic16_com() != this->state) {
     this->publish_state(this->parent_->get_pic16_com());
   }
 }
 
-void UAPBridge_pic16Communication::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16Communication");
+void UAPBridgeCommunication::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgeCommunication");
 }
 
 // Error Sensor
-void UAPBridge_pic16ErrorSensor::setup() {
+void UAPBridgeErrorSensor::setup() {
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
   this->publish_state(this->parent_->get_error_state());
 }
 
-void UAPBridge_pic16ErrorSensor::on_event_triggered() {
+void UAPBridgeErrorSensor::on_event_triggered() {
   if (this->parent_->get_error_state() != this->state) {
     this->publish_state(this->parent_->get_error_state());
   }
 }
 
-void UAPBridge_pic16ErrorSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16ErrorSensor");
+void UAPBridgeErrorSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgeErrorSensor");
 }
 
-void UAPBridge_pic16PrewarnSensor::setup() {
+void UAPBridgePrewarnSensor::setup() {
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
   this->publish_state(this->parent_->get_prewarn_state());
 }
 
-void UAPBridge_pic16PrewarnSensor::on_event_triggered() {
+void UAPBridgePrewarnSensor::on_event_triggered() {
   if (this->parent_->get_prewarn_state() != this->state) {
     this->publish_state(this->parent_->get_prewarn_state());
   }
 }
 
-void UAPBridge_pic16PrewarnSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16PrewarnSensor");
+void UAPBridgePrewarnSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgePrewarnSensor");
 }
 
 // GotValidBroadcast Sensor (formerly DataHasChanged)
-void UAPBridge_pic16GotValidBroadcast::setup() {
+void UAPBridgeGotValidBroadcast::setup() {
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
   this->publish_state(this->parent_->get_valid_broadcast());
 }
 
-void UAPBridge_pic16GotValidBroadcast::on_event_triggered() {
+void UAPBridgeGotValidBroadcast::on_event_triggered() {
   if (this->parent_->get_valid_broadcast() != this->state) {
     this->publish_state(this->parent_->get_valid_broadcast());
   }
 }
 
-void UAPBridge_pic16GotValidBroadcast::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16GotValidBroadcast");
+void UAPBridgeGotValidBroadcast::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgeGotValidBroadcast");
 }
 
-}  // namespace uapbridge_pic16
+}  // namespace uapbridge
 }  // namespace esphome

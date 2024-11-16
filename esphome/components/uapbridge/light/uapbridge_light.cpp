@@ -1,23 +1,23 @@
 #include "esphome/core/log.h"
-#include "uapbridge_pic16_light.h"
+#include "uapbridge_light.h"
 
 namespace esphome {
-namespace uapbridge_pic16 {
+namespace uapbridge {
 
-static const char* TAG = "uapbridge_pic16.light";
+static const char* TAG = "uapbridge.light";
 
-light::LightTraits UAPBridge_pic16Light::get_traits() {
+light::LightTraits UAPBridgeLight::get_traits() {
   auto traits = light::LightTraits();
   traits.set_supported_color_modes({light::ColorMode::ON_OFF});
   return traits;
 }
 
-void UAPBridge_pic16Light::setup() {
-  ESP_LOGD(TAG, "UAPBridge_pic16Light::setup() - setup method called");
+void UAPBridgeLight::setup() {
+  ESP_LOGD(TAG, "UAPBridgeLight::setup() - setup method called");
   this->parent_->add_on_state_callback([this]() { this->on_event_triggered(); });
 }
 
-void UAPBridge_pic16Light::write_state(light::LightState* state) {
+void UAPBridgeLight::write_state(light::LightState* state) {
   bool binary;
   state->current_values_as_binary(&binary);
   if (binary) {
@@ -27,10 +27,10 @@ void UAPBridge_pic16Light::write_state(light::LightState* state) {
   }
 }
 
-void UAPBridge_pic16Light::on_event_triggered() {
+void UAPBridgeLight::on_event_triggered() {
   if (this->state_->current_values.is_on() != this->parent_->get_light_enabled()) {
     // Adjust the state of the light based on the external light state
-    ESP_LOGD(TAG, "UAPBridge_pic16Light::update() - adjusting state");
+    ESP_LOGD(TAG, "UAPBridgeLight::update() - adjusting state");
     if (this->parent_->get_light_enabled()) {
       this->state_->turn_on().perform();
     } else {
@@ -39,8 +39,8 @@ void UAPBridge_pic16Light::on_event_triggered() {
   }
 }
 
-void UAPBridge_pic16Light::dump_config() {
-  ESP_LOGCONFIG(TAG, "UAPBridge_pic16Light:");
+void UAPBridgeLight::dump_config() {
+  ESP_LOGCONFIG(TAG, "UAPBridgeLight:");
 }
-}  // namespace uapbridge_pic16
+}  // namespace uapbridge
 }  // namespace esphome
