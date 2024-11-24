@@ -1,3 +1,6 @@
+# MOVED
+**This project has been merged into https://github.com/14yannick/hoermann_door**
+<br><br><br><br><br><br><br><br><br><br><br><br><br>
 # hoermann_door
 Control Hörmann doors drives directly via MQTT from Home Assistant - Without custom PCB
 
