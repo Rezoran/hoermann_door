@@ -193,7 +193,7 @@ void UAPBridge_esp::transmit() {
   this->parent_->set_data_bits(7);
   this->parent_->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
   this->parent_->set_stop_bits(1);
-  this->parent_->load_settings(false);
+  this->parent_->load_settings(true);
   this->write_byte(0x00);
   this->flush();
 
@@ -203,7 +203,7 @@ void UAPBridge_esp::transmit() {
   this->parent_->set_data_bits(8);
   this->parent_->set_parity(esphome::uart::UARTParityOptions::UART_CONFIG_PARITY_NONE);
   this->parent_->set_stop_bits(1);
-  this->parent_->load_settings(false);
+  this->parent_->load_settings(true);
   this->write_array(this->tx_data, this->tx_length);
   this->flush();
   ESP_LOGD(TAG, "Resetting config to normal operation -- DONE");
