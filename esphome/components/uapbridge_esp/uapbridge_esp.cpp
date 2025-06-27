@@ -187,7 +187,7 @@ void UAPBridge_esp::transmit() {
   if (this->rts_pin_ != nullptr) {
     this->rts_pin_->digital_write(true);// LOW(false) = listen, HIGH(true) = transmit
   }
-  ESP_LOGD(TAG, "Generating Sync break")
+  ESP_LOGD(TAG, "Generating Sync break");
   // Generate Sync break
   this->parent_->set_baud_rate(9600);
   this->parent_->set_data_bits(7);
@@ -197,7 +197,7 @@ void UAPBridge_esp::transmit() {
   this->write_byte(0x00);
   this->flush();
 
-  ESP_LOGD(TAG, "Resetting config to normal operation")
+  ESP_LOGD(TAG, "Resetting config to normal operation");
   // Transmit
   this->parent_->set_baud_rate(19200);
   this->parent_->set_data_bits(8);
@@ -206,7 +206,7 @@ void UAPBridge_esp::transmit() {
   this->parent_->load_settings(false);
   this->write_array(this->tx_data, this->tx_length);
   this->flush();
-  ESP_LOGD(TAG, "Resetting config to normal operation -- DONE")
+  ESP_LOGD(TAG, "Resetting config to normal operation -- DONE");
 
   if (this->rts_pin_ != nullptr) {
     this->rts_pin_->digital_write(false);// LOW(false) = listen, HIGH(true) = transmit
